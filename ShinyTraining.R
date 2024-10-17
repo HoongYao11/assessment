@@ -36,9 +36,9 @@ server <- function(input, output, server) {
       "Y2017" = c(num171, cum172, cum173, cum174),
       "Y2018" = c(num181, cum182, cum183, cum184),
       "Y2019" = c(num191, cum192, cum193, cum194)
-  )
+    )
     return(dataf)
-    })
+  })
   output$show  <- renderTable(data())
   output$graph <- renderPlot({
     df <- data()
@@ -49,12 +49,13 @@ server <- function(input, output, server) {
       labs(title = "Cumulative claims paid",
            x = "Development Year",
            y = "Claims Paid") +
-    scale_color_manual(name = "Development Year", values = c("Loss Year 2017" = "blue",
-                                                             "Loss Year 2018" = "red",
-                                                             "Loss Year 2019" = "green")) +
+      scale_color_manual(name = "Development Year", values = c("Loss Year 2017" = "blue",
+                                                               "Loss Year 2018" = "red",
+                                                               "Loss Year 2019" = "green")) +
       theme_minimal()
   })
 }
 
 shinyApp(ui, server)
-
+library(curl)
+curl::curl_fetch_memory("http://www.google.com")
