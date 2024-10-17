@@ -2,12 +2,27 @@
 # install.packages("readxl")
 # library(readxl)
 # library(ggplot2)
+
 ui <- fluidPage(
-  fileInput("upload","Choose claims data file"),
-  sliderInput("tail", "Tail", value = 1.1, min = 1, max = 2),
-  tableOutput("show"),
-  plotOutput("graph")
-)
+  fluidRow(
+    column(4,
+           h4("Inputs"),
+           fileInput("upload","Choose claims data file"),
+           sliderInput("tail", "Tail", value = 1.1, min = 1, max = 2)
+           ),
+    column(8,
+      tabsetPanel(
+        tabPanel("Cumulative Paid Claims ($)",
+                 h4("Cumulative Paid Claims"),
+                 h5("Development Year"),
+                    tableOutput("show")
+                 ),
+        tabPanel("Plot of Cumulative Paid Claims",
+                    plotOutput("graph"))
+        )
+      )
+    )
+  )
 
 server <- function(input, output, server) {
   df <- reactive({ 
@@ -16,30 +31,32 @@ server <- function(input, output, server) {
   })
   data <- reactive({
     req(df())
-    num171 = as.numeric(df()[2,3])
-    num172 = as.numeric(df()[3,3])
-    num173 = as.numeric(df()[4,3])
-    num181 = as.numeric(df()[5,3])
-    num182 = as.numeric(df()[6,3])
-    num191 = as.numeric(df()[7,3])
-    cum172 = num171+num172
-    cum182 = num181 + num182
-    cum192 = (cum172+cum182)/(num171+num181)*num191
-    cum173 = cum172 + num173
+    values <- as.numeric(unlist(df()[2:7, 3]))
+    cum172 = sum(values[1:2])
+    cum182 = sum(values[4:5])
+    cum192 = (cum172 + cum182) / (values[1] + values[4])* values[6]
+    cum173 = cum172 + values[3]
     cum183 = cum173 / cum172 * cum182
     cum193 = cum173 / cum172 * cum192
-    cum174 = cum173 * input$tail
-    cum184 = cum183 * input$tail
-    cum194 = cum193 * input$tail
     dataf <- data.frame(
       "Years" = c(1,2,3,4),
-      "Y2017" = c(num171, cum172, cum173, cum174),
-      "Y2018" = c(num181, cum182, cum183, cum184),
-      "Y2019" = c(num191, cum192, cum193, cum194)
+      "Y2017" = c(values[1], cum172, cum173, cum173 * input$tail),
+      "Y2018" = c(values[4], cum182, cum183, cum183 * input$tail),
+      "Y2019" = c(values[6], cum192, cum193, cum193 * input$tail)
     )
     return(dataf)
   })
-  output$show  <- renderTable(data())
+  
+  #Table output for first tab -------------
+  output$show  <- renderTable({
+    df <- as.data.frame(t(data()))
+    colnames(df) <- as.character(df[1,])
+    df <- df[-1,]
+    rownames(df) <- c(2017, 2018, 2019)
+    df <- round(df)
+    }, rownames = TRUE)
+  
+  #Plot output for second tab ------------
   output$graph <- renderPlot({
     df <- data()
     ggplot()+
@@ -49,13 +66,13 @@ server <- function(input, output, server) {
       labs(title = "Cumulative claims paid",
            x = "Development Year",
            y = "Claims Paid") +
-      scale_color_manual(name = "Development Year", values = c("Loss Year 2017" = "blue",
-                                                               "Loss Year 2018" = "red",
-                                                               "Loss Year 2019" = "green")) +
+      scale_color_manual(name = "Development Year", 
+                         values = c("Loss Year 2017" = "blue",
+                                    "Loss Year 2018" = "red",
+                                    "Loss Year 2019" = "green")) +
+      scale_y_continuous(limits = c(0,NA)) +
       theme_minimal()
   })
 }
 
 shinyApp(ui, server)
-library(curl)
-curl::curl_fetch_memory("http://www.google.com")
