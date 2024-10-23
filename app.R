@@ -1,36 +1,38 @@
- library(shiny)
- library(readxl)
- library(ggplot2)
+library(shiny)
+library(ggplot2)
 
 ui <- fluidPage(
   fluidRow(
     column(4,
            h4("Inputs"),
-           fileInput("upload","Choose claims data file"),
+           fileInput("upload","Choose claims data file (.csv only)"),
            sliderInput("tail", "Tail", value = 1.1, min = 1, max = 2)
-           ),
+    ),
     column(8,
-      tabsetPanel(
-        tabPanel("Cumulative Paid Claims ($)",
-                 h4("Cumulative Paid Claims"),
-                 h5("Development Year"),
-                    tableOutput("show")
-                 ),
-        tabPanel("Plot of Cumulative Paid Claims",
-                    plotOutput("graph"))
-        )
-      )
+           tabsetPanel(
+             tabPanel("Cumulative Paid Claims ($)",
+                      h4("Cumulative Paid Claims"),
+                      h5("Development Year"),
+                      tableOutput("show"),
+             ),
+             tabPanel("Plot of Cumulative Paid Claims",
+                      plotOutput("graph"))
+           )
     )
   )
+)
 
 server <- function(input, output, server) {
+  #Read the csv and save as dataframe 
   df <- reactive({ 
     req(input$upload)
-    read_xlsx(input$upload$datapath, sheet = 2)
+    read.csv(input$upload$datapath)
   })
+  
+  #Extract needed values and perform needed calculations from dataframe
   data <- reactive({
     req(df())
-    values <- as.numeric(unlist(df()[2:7, 3]))
+    values <- as.numeric(gsub(",","",df()[, 3]))
     cum172 = sum(values[1:2])
     cum182 = sum(values[4:5])
     cum192 = (cum172 + cum182) / (values[1] + values[4])* values[6]
@@ -53,7 +55,7 @@ server <- function(input, output, server) {
     df <- df[-1,]
     rownames(df) <- c(2017, 2018, 2019)
     df <- round(df)
-    }, rownames = TRUE)
+  }, rownames = TRUE)
   
   #Plot output for second tab ------------
   output$graph <- renderPlot({
