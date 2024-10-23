@@ -31,20 +31,27 @@ server <- function(input, output, server) {
   
   #Extract needed values and perform needed calculations from dataframe
   data <- reactive({
+    dataf <- data.frame()
     req(df())
     values <- as.numeric(gsub(",","",df()[, 3]))
-    cum172 = sum(values[1:2])
-    cum182 = sum(values[4:5])
-    cum192 = (cum172 + cum182) / (values[1] + values[4])* values[6]
-    cum173 = cum172 + values[3]
-    cum183 = cum173 / cum172 * cum182
-    cum193 = cum173 / cum172 * cum192
-    dataf <- data.frame(
-      "Years" = c(1,2,3,4),
-      "Y2017" = c(values[1], cum172, cum173, cum173 * input$tail),
-      "Y2018" = c(values[4], cum182, cum183, cum183 * input$tail),
-      "Y2019" = c(values[6], cum192, cum193, cum193 * input$tail)
-    )
+    loss_years_unique_count <- length(unique(df()[, 1]))
+    forecast_length <- max(df()[,2])
+    for (i in 1:loss_years_unique_count){
+      prev_claims_count <- (i - 1) * forecast_length - (i - 1) * i / 2
+      cum_claims <- 0
+      claims_list <- c()
+      for (n in 1:forecast_length){
+        if (n <= forecast_length - i){
+          cum_claims <- cum_claims + values[n + prev_claims_count]
+        } else if (n < forecast_length){
+          cum_claims = sum(dataf[, n]) / sum(dataf[, n - 1]) * claims_list[length(claims_list)]
+        } else {
+          cum_claims = claims_list[length(claims_list)] * input$tail
+        }
+        claims_list <- c(claims_list, cum_claims)
+      }
+      dataf <- rbind(dataf, claims_list)
+    }
     return(dataf)
   })
   
