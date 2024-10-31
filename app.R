@@ -1,5 +1,7 @@
 library(shiny)
 library(ggplot2)
+library(tibble)
+library(tidyr)
 
 ui <- fluidPage(
   fluidRow(
@@ -32,47 +34,67 @@ server <- function(input, output, server) {
   #Extract needed values and perform needed calculations from dataframe
   data <- reactive({
     req(df())
-    values <- as.numeric(gsub(",","",df()[, 3]))
-    cum172 = sum(values[1:2])
-    cum182 = sum(values[4:5])
-    cum192 = (cum172 + cum182) / (values[1] + values[4])* values[6]
-    cum173 = cum172 + values[3]
-    cum183 = cum173 / cum172 * cum182
-    cum193 = cum173 / cum172 * cum192
-    dataf <- data.frame(
-      "Years" = c(1,2,3,4),
-      "Y2017" = c(values[1], cum172, cum173, cum173 * input$tail),
-      "Y2018" = c(values[4], cum182, cum183, cum183 * input$tail),
-      "Y2019" = c(values[6], cum192, cum193, cum193 * input$tail)
-    )
+    df <- df()
+    df[,3] <- as.numeric(gsub(",","",df[, 3]))
+    cur_loss_year <- df[1,1]
+    cur_loss_year_row <- 1
+    dev_years <- max(df[,2]) #number of unique loss years = development years 
+    cur_cum <- 0
+    dataf <- data.frame(matrix(NA, nrow = length(unique(df[, 1])), ncol = dev_years))
+    
+    #Calculate the cumulative claims that are directly summed from the data
+    for (row_num in 1:nrow(df)) {
+      if (df[row_num, 1] != cur_loss_year){
+        cur_loss_year     <- cur_loss_year     + 1
+        cur_loss_year_row <- cur_loss_year_row + 1
+        cur_cum <- 0 
+      }
+      cur_dev_year <- df[row_num, 2]
+      cur_cum <- cur_cum + df[row_num, 3]
+      dataf[cur_loss_year_row, cur_dev_year] = cur_cum 
+    }
+    
+    #Calculate the cumulative claims from previous development years
+    for (year_num in 2:dev_years) {
+      for (n in seq(year_num - 2, 0)) {
+        dataf[year_num, dev_years - n] <- (sum(dataf[1:year_num - 1, dev_years - n]) /
+                                             sum(dataf[1:year_num - 1, dev_years - n - 1]) *
+                                             dataf[year_num, dev_years - n - 1])
+      }
+    }
+    
+    #Calculate the cumulative claims from the tail value
+    dataf[, dev_years + 1] <- dataf[, dev_years] * input$tail
+    
+    #set row names and column names
+    rownames(dataf) <- as.character(unique(df[,1]))
+    colnames(dataf) <- seq(1, ncol(dataf))
     return(dataf)
   })
   
   #Table output for first tab -------------
   output$show  <- renderTable({
-    df <- as.data.frame(t(data()))
-    colnames(df) <- as.character(df[1,])
-    df <- df[-1,]
-    rownames(df) <- c(2017, 2018, 2019)
-    df <- round(df)
+    dataf <- as.data.frame(data())
+    return(dataf)
   }, rownames = TRUE)
   
   #Plot output for second tab ------------
   output$graph <- renderPlot({
     df <- data()
-    ggplot()+
-      geom_line(data = df, aes(x = Years, y = Y2017, color = "Loss Year 2017")) +
-      geom_line(data = df, aes(x = Years, y = Y2018, color = "Loss Year 2018")) +
-      geom_line(data = df, aes(x = Years, y = Y2019, color = "Loss Year 2019")) +
-      labs(title = "Cumulative claims paid",
+    data_long <- df %>%
+      rownames_to_column(var = "Loss Year") %>%
+      pivot_longer(cols = -`Loss Year`,
+                   names_to = "Development",
+                   values_to = "Value")
+    ggplot(data_long, aes(x = Development,
+                          y = Value,
+                          color = `Loss Year`,
+                          group = `Loss Year`)) +
+      geom_line() +
+      geom_point() +
+      labs(title = "Cumulative Claims by Loss Year",
            x = "Development Year",
-           y = "Claims Paid") +
-      scale_color_manual(name = "Development Year", 
-                         values = c("Loss Year 2017" = "blue",
-                                    "Loss Year 2018" = "red",
-                                    "Loss Year 2019" = "green")) +
-      scale_y_continuous(limits = c(0,NA)) +
-      theme_minimal()
+           y = "Cumulative claims")
   })
 }
 
